@@ -384,6 +384,39 @@
             100% { transform: scale(1); }
         }
 
+        /* Mobile Optimizations & Layout */
+        @media (max-width: 979px) {
+            body {
+                display: block; /* Allow natural page flow and scrolling */
+                padding: 12px 0; /* Add vertical padding */
+            }
+            .container {
+                width: 95vw; /* Use viewport width directly */
+                margin-inline: auto; /* Center the container */
+            }
+            .main {
+                display: flex;
+                flex-direction: column-reverse; /* Show board before controls */
+            }
+            .board {
+                width: 100%; /* Make board fill its container */
+            }
+             .square {
+                font-size: clamp(32px, 10vw, 60px); /* Make pieces bigger on mobile */
+            }
+            .header {
+                flex-direction: column; /* Stack header items */
+                align-items: stretch;
+                gap: 16px;
+            }
+            .controls {
+                justify-content: space-around; /* Better spacing for controls */
+            }
+            .moves {
+                max-height: 100px; /* Reduce height of moves list */
+            }
+        }
+
 
         @media (min-width: 980px) {
             .main { grid-template-columns: minmax(320px, 400px) 1fr; align-items: start; }
@@ -969,3 +1002,4 @@
     </script>
 </body>
 </html>
+
