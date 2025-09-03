@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Classic Wooden Chess</title>
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        :root {
+            /* Wooden Theme Colors */
+            --bg-start: #e3d4c1;
+            --bg-end: #c1b098;
+            --panel-bg: rgba(240, 217, 181, 0.8);
+            --panel-stroke: rgba(0, 0, 0, 0.1);
+            --shadow: 0 10px 30px rgba(80, 50, 20, 0.2);
+            --square-light: #f0d9b5;
+            --square-dark: #b58863;
+            --accent: #8b4513; /* Saddle Brown */
+            --accent-2: #a0522d; /* Sienna */
+            --text: #3a2e2c;
+            --subtle: #6f5f5c;
+            --move-highlight: rgba(139, 69, 19, 0.3); /* Transparent brown for last move */
+            --selection-highlight: rgba(59, 130, 246, 0.85); /* Blue remains for clarity */
+            --capture-highlight: rgba(239, 68, 68, 0.85); /* Red remains for clarity */
+            --check-highlight: rgba(220, 38, 38, 0.5); /* Red for king in check */
+            --dot-color: rgba(22, 163, 74, 0.7);
+        }
+
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            color: var(--text);
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end)) fixed;
+            display: grid;
+            place-items: center;
+        }
+
+        .container {
+            width: min(95vw, 1200px); /* Increased max width for new elements */
+            display: grid;
+            gap: 18px;
+            grid-template-columns: 1fr;
+        }
+
+        .header {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--panel-stroke);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand .logo {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 8px 18px rgba(139,69,19,0.35);
+        }
+        .brand .title { font-weight: 700; letter-spacing: 0.2px; }
+        .brand .subtitle { color: var(--subtle); font-size: 12px; }
+
+        .controls { display: flex; align-items: center; gap: 10px; }
+        .btn {
+            appearance: none; border: 0; outline: none; cursor: pointer;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #fff; font-weight: 600;
+            padding: 10px 14px; border-radius: 12px;
+            box-shadow: 0 8px 18px rgba(139,69,19,0.35);
+            transition: transform 0.12s ease, box-shadow 0.2s ease;
+            display: grid;
+            place-items: center;
+        }
+        .btn.btn-icon {
+            width: 42px;
+            height: 42px;
+            padding: 0;
+        }
+        .btn.btn-icon svg {
+            width: 22px;
+            height: 22px;
+            transition: transform 0.3s ease;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 22px rgba(139,69,19,0.4); }
+        .btn:active { transform: translateY(0); box-shadow: 0 6px 16px rgba(139,69,19,0.3); }
+        
+        .time-control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--subtle);
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        #timeControlSelect {
+            appearance: none;
+            background-color: rgba(255,255,255,0.5);
+            border: 1px solid var(--panel-stroke);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: var(--text);
+            font-weight: 600;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+
+        .main {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 18px;
+        }
+
+        .panel, .board-wrap {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--panel-stroke);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            padding: 16px;
+        }
+
+        .board-wrap { 
+            padding: 14px; 
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0;
+            width: min(90vw, 600px);
+            margin-inline: auto;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .board.flipped {
+            transform: rotate(180deg);
+        }
+        .board.flipped .piece, .board.flipped .coord {
+            transform: rotate(180deg);
+        }
+        .board.flipped .square:hover .piece {
+            transform: rotate(180deg) scale(1.1);
+        }
+
+
+        .square {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            display: grid;
+            place-items: center;
+            font-size: clamp(24px, 5.4vw, 48px);
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+        .square.light { background-color: var(--square-light); }
+        .square.dark { background-color: var(--square-dark); }
+        .square:hover .piece { transform: scale(1.1); }
+        .square.in-check {
+            animation: pulse-check 1.5s infinite;
+        }
+        @keyframes pulse-check {
+            0% { box-shadow: inset 0 0 0 0 var(--check-highlight); }
+            50% { box-shadow: inset 0 0 0 10px var(--check-highlight); }
+            100% { box-shadow: inset 0 0 0 0 var(--check-highlight); }
+        }
+
+        .piece {
+            transition: transform 0.15s ease-out;
+            transform-origin: center center;
+            will-change: transform;
+            pointer-events: none;
+        }
+        .white {
+            color: #f8f8f8; /* Slightly off-white */
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), 0 0 2px rgba(0, 0, 0, 0.6);
+        }
+        .black { 
+            color: #221d1b; /* Rich, dark brown-black */
+            text-shadow: 0 1px 2px rgba(255,255,255,0.4); 
+        }
+
+        .square.selected {
+            box-shadow: inset 0 0 0 4px var(--selection-highlight);
+            z-index: 10;
+        }
+        .square .move-dot {
+            position: absolute; width: 28%; height: 28%; border-radius: 999px;
+            background-color: var(--dot-color);
+            opacity: 0.8;
+            transform: scale(0);
+            animation: dot-pop-in 0.2s ease forwards;
+        }
+        .square.capture::after {
+            content: ""; position: absolute; inset: 0;
+            border-radius: 50%;
+            border: 4px solid transparent;
+            box-shadow: 0 0 0 4px var(--capture-highlight);
+            transform: scale(1.2);
+            opacity: 0;
+            animation: capture-ring 0.3s ease-out forwards;
+        }
+        
+        .square .coord {
+            position: absolute;
+            font-size: clamp(10px, 2vw, 12px);
+            font-weight: bold;
+            pointer-events: none;
+            user-select: none;
+        }
+        .square.light .coord { color: var(--square-dark); }
+        .square.dark .coord { color: var(--square-light); }
+        .square .coord.rank { top: 2px; left: 4px; }
+        .square .coord.file { bottom: 2px; right: 4px; }
+
+
+        /* Animations */
+        @keyframes dot-pop-in {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+        @keyframes capture-ring {
+            from { transform: scale(1.2); opacity: 0; }
+            to { transform: scale(0.8); opacity: 1; }
+        }
+        .piece-landed {
+            animation: piece-land 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes piece-land {
+            0% { transform: scale(1.5) translateY(-20%); }
+            100% { transform: scale(1) translateY(0); }
+        }
+        .last-move-highlight {
+            animation: last-move-fade 1s ease-out;
+        }
+        @keyframes last-move-fade {
+            0% { background-color: var(--move-highlight); }
+            100% { background-color: transparent; }
+        }
+
+
+        .panel {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .panel-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .stat {
+            padding: 12px 14px; border-radius: 12px;
+            background: rgba(255,255,255,0.3);
+        }
+        .stat .label { color: var(--subtle); font-size: 12px; }
+        .stat .value { font-weight: 700; margin-top: 4px; }
+
+        .moves {
+            max-height: 130px; overflow: auto; padding-right: 6px;
+        }
+        .moves ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+        .moves li { padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,0.05); }
+        .moves .ply { color: var(--subtle); font-size: 12px; margin-right: 8px; }
+
+        .captured-pieces-box {
+            grid-column: 1 / -1;
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(0,0,0,0.04);
+            min-height: 48px;
+        }
+        .captured-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 4px;
+        }
+        .captured-header .label {
+            color: var(--subtle);
+            font-size: 12px;
+        }
+        .captured-pieces-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            font-size: clamp(16px, 3vw, 22px);
+            color: var(--text);
+            min-height: 28px;
+        }
+        .timer-display {
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: rgba(0,0,0,0.1);
+            padding: 4px 10px;
+            border-radius: 8px;
+            transition: background-color 0.3s, color 0.3s, transform 0.2s;
+        }
+        .timer-display.active {
+            background-color: var(--accent);
+            color: white;
+            box-shadow: 0 0 15px rgba(139, 69, 19, 0.5);
+        }
+        .timer-display.low-time {
+            color: #ef4444;
+            animation: pulse-timer 1s infinite;
+        }
+        @keyframes pulse-timer {
+            50% { transform: scale(1.03); }
+        }
+
+        .footer { text-align: center; color: var(--subtle); font-size: 12px; grid-column: 1 / -1; }
+
+        /* Game Over Modal */
+        .game-over-modal {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            display: grid;
+            place-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .game-over-modal.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .game-over-modal-content {
+            background: var(--panel-bg);
+            padding: 32px 40px;
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        .game-over-modal.visible .game-over-modal-content {
+            transform: scale(1);
+        }
+        .game-over-modal-content h2 {
+            margin: 0 0 12px;
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: var(--accent);
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+            animation: checkmate-thump 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .game-over-modal-content p {
+            margin: 0 0 24px;
+            color: var(--subtle);
+            font-size: 1.1rem;
+        }
+        
+        @keyframes checkmate-thump {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+
+
+        @media (min-width: 980px) {
+            .main { grid-template-columns: minmax(320px, 1fr) minmax(400px, 1fr); align-items: start; }
+            .board { width: min(70vw, 560px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>
+                <div>
+                    <div class="title">Classic Wooden Chess</div>
+                    <div class="subtitle">With Timers</div>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="time-control-group">
+                    <label for="timeControlSelect">Time:</label>
+                    <select id="timeControlSelect">
+                        <option value="600">10:00</option>
+                        <option value="900">15:00</option>
+                        <option value="300">5:00</option>
+                        <option value="180">3:00</option>
+                    </select>
+                </div>
+                 <button id="flipBtn" class="btn btn-icon" type="button" aria-label="Flip board">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.6v-2.6c0-1.1.9-2 2-2h14"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.4v2.6c0 1.1-.9 2-2 2H5"/></svg>
+                </button>
+                <button id="fullscreenBtn" class="btn btn-icon" type="button" aria-label="Toggle Fullscreen">
+                    <svg class="icon-on" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                    <svg class="icon-off" style="display: none;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+                </button>
+                <button id="muteBtn" class="btn btn-icon" type="button" aria-label="Mute sound">
+                    <svg class="icon-on" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <svg class="icon-off" style="display: none;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="1" x2="1" y2="23"></line><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                </button>
+                <button id="restartBtn" class="btn" type="button">Restart Game</button>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="panel">
+                <div class="panel-row">
+                    <div class="stat">
+                        <div class="label">Turn</div>
+                        <div class="value" id="turnText">White</div>
+                    </div>
+                    <div class="stat moves">
+                        <div class="label">Recent Moves</div>
+                        <ul id="movesList"></ul>
+                    </div>
+                </div>
+
+                <div class="captured-pieces-box">
+                    <div class="captured-header">
+                        <div class="label">Captured by White</div>
+                        <div class="timer-display" id="blackTimer">10:00</div>
+                    </div>
+                    <div id="whiteCapturedDisplay" class="captured-pieces-display"></div>
+                </div>
+                <div class="captured-pieces-box">
+                     <div class="captured-header">
+                        <div class="label">Captured by Black</div>
+                        <div class="timer-display" id="whiteTimer">10:00</div>
+                    </div>
+                    <div id="blackCapturedDisplay" class="captured-pieces-display"></div>
+                </div>
+
+                <div class="footer">Click a piece, then its destination. Auto-promote to Queen. No castling or en passant.</div>
+            </div>
+
+            <div class="board-wrap">
+                <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Over Modal -->
+    <div id="gameOverModal" class="game-over-modal">
+        <div class="game-over-modal-content">
+            <h2 id="gameOverTitle"></h2>
+            <p id="gameOverMessage"></p>
+            <button id="modalRestartBtn" class="btn">Play Again</button>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            (function() {
+                const PIECES = {
+                    white: { K: "\u2654", Q: "\u2655", R: "\u2656", B: "\u2657", N: "\u2658", P: "\u2659" },
+                    black: { K: "\u265A", Q: "\u265B", R: "\u265C", B: "\u265D", N: "\u265E", P: "\u265F" }
+                };
+
+                const boardEl = document.getElementById('board');
+                const turnText = document.getElementById('turnText');
+                const movesList = document.getElementById('movesList');
+                const restartBtn = document.getElementById('restartBtn');
+                const muteBtn = document.getElementById('muteBtn');
+                const flipBtn = document.getElementById('flipBtn');
+                const fullscreenBtn = document.getElementById('fullscreenBtn');
+                const whiteCapturedDisplay = document.getElementById('whiteCapturedDisplay');
+                const blackCapturedDisplay = document.getElementById('blackCapturedDisplay');
+                const gameOverModal = document.getElementById('gameOverModal');
+                const gameOverTitle = document.getElementById('gameOverTitle');
+                const gameOverMessage = document.getElementById('gameOverMessage');
+                const modalRestartBtn = document.getElementById('modalRestartBtn');
+                const timeControlSelect = document.getElementById('timeControlSelect');
+                const whiteTimerDisplay = document.getElementById('whiteTimer');
+                const blackTimerDisplay = document.getElementById('blackTimer');
+
+                // --- Sound Engine ---
+                let audioReady = false;
+                let isMuted = false;
+                const sounds = {};
+                function setupAudio() {
+                    // Sharp, clean "click" for a standard move
+                    sounds.move = new Tone.Synth({
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.001, decay: 0.1, sustain: 0.01, release: 0.1 },
+                        volume: -10
+                    }).toDestination();
+
+                    // More impactful "thwack" for captures
+                    sounds.capture = new Tone.NoiseSynth({
+                        noise: { type: 'brown' },
+                        envelope: { attack: 0.001, decay: 0.15, sustain: 0, release: 0.2 },
+                        volume: -8
+                    }).toDestination();
+
+                    // Clear, modern "ping" for check
+                    sounds.check = new Tone.Synth({
+                        oscillator: { type: 'sine' },
+                        envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.5 },
+                        volume: -12
+                    }).toDestination();
+                    
+                    // Soft, rhythmic "tick" for low time warning
+                    sounds.lowTime = new Tone.Synth({
+                        oscillator: { type: 'square' },
+                        envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.1 },
+                        volume: -15
+                    }).toDestination();
+
+                    sounds.gameEnd = new Tone.Synth({ oscillator: { type: 'fmsquare' }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.1, release: 0.8 } }).toDestination();
+                    sounds.checkmate = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "amsine", harmonicity: 1.2 }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.3, release: 1.5 }, volume: -5 }).toDestination();
+                    audioReady = true;
+                }
+                // --- End Sound Engine ---
+
+                let state;
+                let selectedIndex = null;
+                let legalTargets = new Set();
+                let lastMove = null;
+                let gameInterval = null;
+
+                function createInitialBoard() {
+                    const emptyRow = () => Array(8).fill(null);
+                    const board = Array(8).fill(null).map(emptyRow);
+                    board[0] = [ { type: 'R', color: 'black' }, { type: 'N', color: 'black' }, { type: 'B', color: 'black' }, { type: 'Q', color: 'black' }, { type: 'K', color: 'black' }, { type: 'B', color: 'black' }, { type: 'N', color: 'black' }, { type: 'R', color: 'black' }, ];
+                    board[1] = Array(8).fill(null).map(() => ({ type: 'P', color: 'black' }));
+                    board[6] = Array(8).fill(null).map(() => ({ type: 'P', color: 'white' }));
+                    board[7] = [ { type: 'R', color: 'white' }, { type: 'N', color: 'white' }, { type: 'B', color: 'white' }, { type: 'Q', color: 'white' }, { type: 'K', color: 'white' }, { type: 'B', color: 'white' }, { type: 'N', color: 'white' }, { type: 'R', color: 'white' }, ];
+                    return board;
+                }
+
+                function initState() {
+                    if (gameInterval) clearInterval(gameInterval);
+                    gameInterval = null;
+
+                    const selectedTime = parseInt(timeControlSelect.value, 10);
+
+                    state = {
+                        board: createInitialBoard(),
+                        turn: 'white',
+                        moveHistory: [],
+                        winner: null,
+                        stalemate: false,
+                        captured: { white: [], black: [] },
+                        timers: { white: selectedTime, black: selectedTime }
+                    };
+                    selectedIndex = null;
+                    legalTargets = new Set();
+                    lastMove = null;
+                    hideGameOverModal();
+                    updateTimerDisplays();
+                }
+
+                function coordToIndex(row, col) { return row * 8 + col; }
+                function indexToCoord(index) { return [Math.floor(index / 8), index % 8]; }
+                function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+                function cloneBoard(board) { return board.map(row => row.map(cell => cell ? { ...cell } : null)); }
+
+                function renderBoard() {
+                    boardEl.innerHTML = '';
+                    const isCheck = !state.winner && !state.stalemate && isInCheck(state.board, state.turn);
+                    state.board.forEach((row, r) => {
+                        row.forEach((piece, c) => {
+                            const index = coordToIndex(r, c);
+                            const square = document.createElement('button');
+                            square.type = 'button';
+                            square.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
+                            square.setAttribute('role', 'gridcell');
+                            square.dataset.index = String(index);
+
+                            // Add coordinates inside the squares
+                            if (c === 0) { // Add rank number to 'a' file squares
+                                const rankCoord = document.createElement('span');
+                                rankCoord.className = 'coord rank';
+                                rankCoord.textContent = 8 - r;
+                                square.appendChild(rankCoord);
+                            }
+                            if (r === 7) { // Add file letter to 1st rank squares
+                                const fileCoord = document.createElement('span');
+                                fileCoord.className = 'coord file';
+                                fileCoord.textContent = String.fromCharCode(97 + c);
+                                square.appendChild(fileCoord);
+                            }
+
+                            if (piece) {
+                                const span = document.createElement('span');
+                                span.className = `piece ${piece.color}`;
+                                span.textContent = PIECES[piece.color][piece.type];
+                                square.appendChild(span);
+                            }
+                            if (isCheck && piece && piece.type === 'K' && piece.color === state.turn) {
+                                square.classList.add('in-check');
+                            }
+                            if (lastMove) {
+                               if (index === lastMove.from || index === lastMove.to) {
+                                   square.classList.remove('last-move-highlight');
+                                   void square.offsetWidth; 
+                                   square.classList.add('last-move-highlight');
+                               }
+                               if (index === lastMove.to && piece) {
+                                   const pieceEl = square.querySelector('.piece');
+                                   if (pieceEl) {
+                                       pieceEl.classList.add('piece-landed');
+                                   }
+                               }
+                            }
+                            if (selectedIndex === index) {
+                                square.classList.add('selected');
+                            }
+                            if (legalTargets.has(index)) {
+                                if (state.board[r][c]) {
+                                    square.classList.add('capture');
+                                } else {
+                                    square.appendChild(Object.assign(document.createElement('div'), { className: 'move-dot' }));
+                                }
+                            }
+                            square.addEventListener('click', onSquareClick);
+                            boardEl.appendChild(square);
+                        });
+                    });
+                    updateStatus();
+                    renderCapturedPieces();
+                }
+
+                function updateStatus() {
+                    if (state.winner) {
+                        stopTimer();
+                        const winReason = state.timers[state.turn] <= 0 ? "on time" : "by checkmate";
+                        turnText.textContent = `${capitalize(state.winner)} wins!`;
+                        turnText.style.color = 'var(--accent)';
+                        showGameOverModal(winReason === "on time" ? "Time Out!" : 'Checkmate!', `${capitalize(state.winner)} wins the game ${winReason}.`);
+                        return;
+                    }
+                    if (state.stalemate) {
+                        stopTimer();
+                        turnText.textContent = `Stalemate`;
+                        turnText.style.color = 'var(--subtle)';
+                        showGameOverModal('Stalemate', 'The game is a draw.');
+                        return;
+                    }
+                    turnText.style.color = 'var(--text)';
+                    const inCheck = isInCheck(state.board, state.turn);
+                    turnText.textContent = `${capitalize(state.turn)}'s Turn` + (inCheck ? ' (Check)' : '');
+                    movesList.innerHTML = '';
+                    state.moveHistory.slice(-5).reverse().forEach((mv, i) => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<span class="ply">${state.moveHistory.length - i}.</span> ${mv}`;
+                        movesList.appendChild(li);
+                    });
+                    movesList.scrollTop = 0;
+                }
+
+                function formatTime(seconds) {
+                    const mins = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                }
+
+                function updateTimerDisplays() {
+                    whiteTimerDisplay.textContent = formatTime(state.timers.white);
+                    blackTimerDisplay.textContent = formatTime(state.timers.black);
+                    whiteTimerDisplay.classList.remove('active', 'low-time');
+                    blackTimerDisplay.classList.remove('active', 'low-time');
+                    if (state.winner || state.stalemate) return;
+                    if (state.turn === 'white') {
+                        whiteTimerDisplay.classList.add('active');
+                    } else {
+                        blackTimerDisplay.classList.add('active');
+                    }
+                    if (state.timers.white <= 10) whiteTimerDisplay.classList.add('low-time');
+                    if (state.timers.black <= 10) blackTimerDisplay.classList.add('low-time');
+                }
+
+                function stopTimer() {
+                    if (gameInterval) clearInterval(gameInterval);
+                    gameInterval = null;
+                    whiteTimerDisplay.classList.remove('active');
+                    blackTimerDisplay.classList.remove('active');
+                }
+
+                function startTimer() {
+                    if (gameInterval) return;
+                    gameInterval = setInterval(() => {
+                        state.timers[state.turn]--;
+                        updateTimerDisplays();
+                        
+                        // Play low time sound
+                        if (state.timers[state.turn] <= 10 && state.timers[state.turn] > 0) {
+                            sounds.lowTime.triggerAttackRelease("C6", "32n");
+                        }
+
+                        if (state.timers[state.turn] <= 0) {
+                            state.timers[state.turn] = 0;
+                            state.winner = state.turn === 'white' ? 'black' : 'white'; // Set winner
+                            updateStatus();
+                        }
+                    }, 1000);
+                }
+
+                function renderCapturedPieces() {
+                    const pieceOrder = { 'Q': 1, 'R': 2, 'B': 3, 'N': 4, 'P': 5 };
+                    const sortPieces = (a, b) => pieceOrder[a.type] - pieceOrder[b.type];
+                    whiteCapturedDisplay.innerHTML = state.captured.white.sort(sortPieces).map(p => `<span>${PIECES.black[p.type]}</span>`).join('');
+                    blackCapturedDisplay.innerHTML = state.captured.black.sort(sortPieces).map(p => `<span>${PIECES.white[p.type]}</span>`).join('');
+                }
+
+                function showGameOverModal(title, message) {
+                    gameOverTitle.textContent = title;
+                    gameOverMessage.textContent = message;
+                    gameOverModal.classList.add('visible');
+                }
+
+                function hideGameOverModal() {
+                    gameOverModal.classList.remove('visible');
+                }
+
+                function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+                function algebraic([r, c]) { return String.fromCharCode(97 + c) + (8 - r); }
+
+                function onSquareClick(e) {
+                    try {
+                        if (!audioReady) {
+                            setupAudio();
+                            Tone.start();
+                        }
+                        if (state.winner || state.stalemate) return;
+                        const index = Number(e.currentTarget.dataset.index);
+                        const [r, c] = indexToCoord(index);
+                        const piece = state.board[r][c];
+                        if (selectedIndex === null) {
+                            if (!piece || piece.color !== state.turn) return;
+                            selectedIndex = index;
+                            legalTargets = new Set(generateLegalTargets(index));
+                            renderBoard();
+                            return;
+                        }
+                        if (selectedIndex === index) {
+                            selectedIndex = null; legalTargets.clear(); renderBoard(); return;
+                        }
+                        if (legalTargets.has(index)) {
+                            makeMove(selectedIndex, index);
+                            selectedIndex = null; legalTargets.clear();
+                            renderBoard();
+                            return;
+                        }
+                        if (piece && piece.color === state.turn) {
+                            selectedIndex = index;
+                            legalTargets = new Set(generateLegalTargets(index));
+                            renderBoard();
+                        } else {
+                            selectedIndex = null; legalTargets.clear(); renderBoard();
+                        }
+                    } catch (err) {
+                        console.error("Game error:", err);
+                    }
+                }
+
+                function generateLegalTargets(index) {
+                    const [r, c] = indexToCoord(index);
+                    const piece = state.board[r][c];
+                    if (!piece) return [];
+                    const pseudo = generatePseudoMoves(state.board, r, c, piece);
+                    return pseudo.map(([tr, tc]) => coordToIndex(tr, tc)).filter(targetIndex => {
+                        const boardCopy = cloneBoard(state.board);
+                        const [tr, tc] = indexToCoord(targetIndex);
+                        boardCopy[tr][tc] = { ...piece };
+                        boardCopy[r][c] = null;
+                        if (piece.type === 'P' && (tr === 0 || tr === 7)) {
+                            boardCopy[tr][tc].type = 'Q';
+                        }
+                        return !isInCheck(boardCopy, piece.color);
+                    });
+                }
+
+                function generatePseudoMoves(board, r, c, piece) {
+                    const moves = [];
+                    const color = piece.color;
+                    const forward = color === 'white' ? -1 : 1;
+                    const slideDirs = (dirs) => {
+                        for (const [dr, dc] of dirs) {
+                            let rr = r + dr, cc = c + dc;
+                            while (inBounds(rr, cc)) {
+                                const t = board[rr][cc];
+                                if (!t) moves.push([rr, cc]);
+                                else {
+                                    if (t.color !== color) moves.push([rr, cc]);
+                                    break;
+                                }
+                                rr += dr; cc += dc;
+                            }
+                        }
+                    };
+                    switch (piece.type) {
+                        case 'P':
+                            const r1 = r + forward, r2 = r + 2 * forward;
+                            if (inBounds(r1, c) && !board[r1][c]) {
+                                moves.push([r1, c]);
+                                const startRow = color === 'white' ? 6 : 1;
+                                if (r === startRow && inBounds(r2, c) && !board[r2][c]) moves.push([r2, c]);
+                            }
+                            for (const dc of [-1, 1]) {
+                                const cc = c + dc;
+                                if (inBounds(r1, cc) && board[r1][cc] && board[r1][cc].color !== color) moves.push([r1, cc]);
+                            }
+                            break;
+                        case 'N':
+                            [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr, dc]) => {
+                                const rr = r + dr, cc = c + dc;
+                                if (inBounds(rr, cc) && (!board[rr][cc] || board[rr][cc].color !== color)) moves.push([rr, cc]);
+                            });
+                            break;
+                        case 'K':
+                            [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr, dc]) => {
+                                const rr = r + dr, cc = c + dc;
+                                if (inBounds(rr, cc) && (!board[rr][cc] || board[rr][cc].color !== color)) moves.push([rr, cc]);
+                            });
+                            break;
+                        case 'B': slideDirs([[1,1],[1,-1],[-1,1],[-1,-1]]); break;
+                        case 'R': slideDirs([[1,0],[-1,0],[0,1],[0,-1]]); break;
+                        case 'Q': slideDirs([[1,1],[1,-1],[-1,1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]]); break;
+                    }
+                    return moves;
+                }
+
+                function findKing(board, color) {
+                    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+                        const p = board[r][c];
+                        if (p && p.type === 'K' && p.color === color) return [r, c];
+                    }
+                    return null;
+                }
+
+                function isInCheck(board, color) {
+                    const kingPos = findKing(board, color);
+                    if (!kingPos) return false;
+                    const [kr, kc] = kingPos;
+                    const enemy = color === 'white' ? 'black' : 'white';
+                    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+                        const p = board[r][c];
+                        if (p && p.color === enemy) {
+                            if (generatePseudoMoves(board, r, c, p).some(([rr, cc]) => rr === kr && cc === kc)) return true;
+                        }
+                    }
+                    return false;
+                }
+
+                function currentPlayerHasLegalMove() {
+                    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+                        const p = state.board[r][c];
+                        if (p && p.color === state.turn && generateLegalTargets(coordToIndex(r, c)).length > 0) return true;
+                    }
+                    return false;
+                }
+
+                function makeMove(fromIndex, toIndex) {
+                    if (state.moveHistory.length === 0) {
+                        startTimer();
+                    }
+                    const [fr, fc] = indexToCoord(fromIndex);
+                    const [tr, tc] = indexToCoord(toIndex);
+                    const piece = state.board[fr][fc];
+                    const captured = state.board[tr][tc];
+                    if (captured) {
+                        state.captured[state.turn].push(captured);
+                    }
+                    state.board[tr][tc] = { ...piece };
+                    state.board[fr][fc] = null;
+                    lastMove = { from: fromIndex, to: toIndex, captured: !!captured };
+
+                    if (captured) sounds.capture.triggerAttackRelease("8n");
+                    else sounds.move.triggerAttackRelease("C5", "16n");
+                    
+                    if (piece.type === 'P' && (tr === 0 || tr === 7)) {
+                        state.board[tr][tc].type = 'Q';
+                    }
+                    const movedPiece = state.board[tr][tc];
+                    const pieceSymbol = PIECES[movedPiece.color][movedPiece.type];
+                    const notation = `${pieceSymbol} ${algebraic([fr, fc])}${captured ? 'x' : '→'}${algebraic([tr, tc])}`;
+                    state.moveHistory.push(notation);
+                    state.turn = state.turn === 'white' ? 'black' : 'white';
+                    updateTimerDisplays();
+                    const inCheck = isInCheck(state.board, state.turn);
+                    const hasMoves = currentPlayerHasLegalMove();
+                    if (!hasMoves) {
+                        if (inCheck) {
+                            state.winner = state.turn === 'white' ? 'black' : 'white';
+                            sounds.checkmate.triggerAttackRelease(["C3", "G3", "C4", "Eb4"], "1.5s");
+                        } else {
+                            state.stalemate = true;
+                            sounds.gameEnd.triggerAttackRelease("C3", "1s");
+                        }
+                    } else if (inCheck) {
+                        sounds.check.triggerAttackRelease("A5", "16n");
+                    }
+                    updateStatus();
+                }
+
+                function doRestart() {
+                    initState();
+                    renderBoard();
+                }
+
+                restartBtn.addEventListener('click', doRestart);
+                modalRestartBtn.addEventListener('click', doRestart);
+                timeControlSelect.addEventListener('change', doRestart);
+
+                muteBtn.addEventListener('click', () => {
+                    isMuted = !isMuted;
+                    Tone.Master.mute = isMuted;
+                    const iconOn = muteBtn.querySelector('.icon-on');
+                    const iconOff = muteBtn.querySelector('.icon-off');
+                    iconOn.style.display = isMuted ? 'none' : 'block';
+                    iconOff.style.display = isMuted ? 'block' : 'none';
+                });
+                
+                flipBtn.addEventListener('click', () => {
+                    boardEl.classList.toggle('flipped');
+                    const icon = flipBtn.querySelector('svg');
+                    const currentRotation = (icon.style.transform.match(/(-?\d+)/) || [0,0])[1];
+                    icon.style.transform = `rotate(${parseInt(currentRotation) + 180}deg)`;
+                });
+
+                fullscreenBtn.addEventListener('click', () => {
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen();
+                    } else {
+                        if (document.exitFullscreen) {
+                            document.exitFullscreen();
+                        }
+                    }
+                });
+
+                document.addEventListener('fullscreenchange', () => {
+                    const isFullscreen = !!document.fullscreenElement;
+                    const iconOn = fullscreenBtn.querySelector('.icon-on');
+                    const iconOff = fullscreenBtn.querySelector('.icon-off');
+                    iconOn.style.display = isFullscreen ? 'none' : 'block';
+                    iconOff.style.display = isFullscreen ? 'block' : 'none';
+                });
+
+                initState();
+                renderBoard();
+            })();
+        });
+    </script>
+</body>
+</html>
+
+
