@@ -39,7 +39,7 @@
         }
 
         .container {
-            width: min(95vw, 1200px); /* Increased max width for new elements */
+            width: min(95vw, 1400px); /* Increased max width */
             display: grid;
             gap: 18px;
             grid-template-columns: 1fr;
@@ -146,7 +146,7 @@
             display: grid;
             grid-template-columns: repeat(8, 1fr);
             gap: 0;
-            width: min(90vw, 600px);
+            width: min(90vw, 800px); /* Increased board size */
             margin-inline: auto;
             border-radius: 10px;
             overflow: hidden;
@@ -169,7 +169,7 @@
             aspect-ratio: 1 / 1;
             display: grid;
             place-items: center;
-            font-size: clamp(24px, 5.4vw, 48px);
+            font-size: clamp(32px, 8vw, 68px); /* Increased piece size */
             user-select: none;
             transition: background-color 0.2s ease;
         }
@@ -386,8 +386,8 @@
 
 
         @media (min-width: 980px) {
-            .main { grid-template-columns: minmax(320px, 1fr) minmax(400px, 1fr); align-items: start; }
-            .board { width: min(70vw, 560px); }
+            .main { grid-template-columns: minmax(320px, 400px) 1fr; align-items: start; }
+            .board { width: 100%; }
         }
     </style>
 </head>
@@ -617,15 +617,15 @@
                             }
                             if (lastMove) {
                                if (index === lastMove.from || index === lastMove.to) {
-                                   square.classList.remove('last-move-highlight');
-                                   void square.offsetWidth; 
-                                   square.classList.add('last-move-highlight');
+                                    square.classList.remove('last-move-highlight');
+                                    void square.offsetWidth; 
+                                    square.classList.add('last-move-highlight');
                                }
                                if (index === lastMove.to && piece) {
-                                   const pieceEl = square.querySelector('.piece');
-                                   if (pieceEl) {
-                                       pieceEl.classList.add('piece-landed');
-                                   }
+                                    const pieceEl = square.querySelector('.piece');
+                                    if (pieceEl) {
+                                        pieceEl.classList.add('piece-landed');
+                                    }
                                }
                             }
                             if (selectedIndex === index) {
@@ -969,5 +969,3 @@
     </script>
 </body>
 </html>
-
-
