@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Classic Wooden Chess</title>
-    <!-- Tone.js for sound effects -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <style>
         :root {
@@ -487,7 +486,7 @@
                     <div id="blackCapturedDisplay" class="captured-pieces-display"></div>
                 </div>
 
-                <div class="footer">Click a piece, then its destination. Auto-promote to Queen. No castling or en passant.</div>
+                <div class="footer">Click a piece, then its destination. Auto-promote to Queen. Castling implemented. No en passant.</div>
             </div>
 
             <div class="board-wrap">
@@ -496,7 +495,6 @@
         </div>
     </div>
     
-    <!-- Game Over Modal -->
     <div id="gameOverModal" class="game-over-modal">
         <div class="game-over-modal-content">
             <h2 id="gameOverTitle"></h2>
@@ -599,6 +597,11 @@
                         winner: null,
                         stalemate: false,
                         captured: { white: [], black: [] },
+                        // --- CASTLING CHANGE: Added castling rights to state ---
+                        castling: {
+                            white: { K: true, Q: true }, // Kingside, Queenside
+                            black: { K: true, Q: true }
+                        },
                         timers: { white: selectedTime, black: selectedTime }
                     };
                     selectedIndex = null;
@@ -819,9 +822,24 @@
                     const pseudo = generatePseudoMoves(state.board, r, c, piece);
                     return pseudo.map(([tr, tc]) => coordToIndex(tr, tc)).filter(targetIndex => {
                         const boardCopy = cloneBoard(state.board);
+                        const [fr, fc] = indexToCoord(index);
                         const [tr, tc] = indexToCoord(targetIndex);
+                        
+                        // Special handling for castle move in copy
+                        if (piece.type === 'K' && Math.abs(fc - tc) === 2) {
+                            // Move rook in copy
+                            if (tc > fc) { // Kingside
+                                boardCopy[fr][5] = boardCopy[fr][7];
+                                boardCopy[fr][7] = null;
+                            } else { // Queenside
+                                boardCopy[fr][3] = boardCopy[fr][0];
+                                boardCopy[fr][0] = null;
+                            }
+                        }
+
                         boardCopy[tr][tc] = { ...piece };
-                        boardCopy[r][c] = null;
+                        boardCopy[fr][fc] = null;
+
                         if (piece.type === 'P' && (tr === 0 || tr === 7)) {
                             boardCopy[tr][tc].type = 'Q';
                         }
@@ -829,7 +847,8 @@
                     });
                 }
 
-                function generatePseudoMoves(board, r, c, piece) {
+                // --- CASTLING CHANGE: Updated function to prevent recursive castling checks ---
+                function generatePseudoMoves(board, r, c, piece, checkCastling = true) {
                     const moves = [];
                     const color = piece.color;
                     const forward = color === 'white' ? -1 : 1;
@@ -871,6 +890,24 @@
                                 const rr = r + dr, cc = c + dc;
                                 if (inBounds(rr, cc) && (!board[rr][cc] || board[rr][cc].color !== color)) moves.push([rr, cc]);
                             });
+                            // --- CASTLING CHANGE: Castling move generation logic ---
+                            if (checkCastling && !isInCheck(board, color)) {
+                                const kingRow = color === 'white' ? 7 : 0;
+                                // Kingside (O-O)
+                                if (state.castling[color].K && !board[kingRow][5] && !board[kingRow][6]) {
+                                    if (!isSquareAttacked(board, kingRow, 5, color === 'white' ? 'black' : 'white') &&
+                                        !isSquareAttacked(board, kingRow, 6, color === 'white' ? 'black' : 'white')) {
+                                        moves.push([kingRow, 6]);
+                                    }
+                                }
+                                // Queenside (O-O-O)
+                                if (state.castling[color].Q && !board[kingRow][1] && !board[kingRow][2] && !board[kingRow][3]) {
+                                     if (!isSquareAttacked(board, kingRow, 2, color === 'white' ? 'black' : 'white') &&
+                                         !isSquareAttacked(board, kingRow, 3, color === 'white' ? 'black' : 'white')) {
+                                        moves.push([kingRow, 2]);
+                                    }
+                                }
+                            }
                             break;
                         case 'B': slideDirs([[1,1],[1,-1],[-1,1],[-1,-1]]); break;
                         case 'R': slideDirs([[1,0],[-1,0],[0,1],[0,-1]]); break;
@@ -892,10 +929,20 @@
                     if (!kingPos) return false;
                     const [kr, kc] = kingPos;
                     const enemy = color === 'white' ? 'black' : 'white';
-                    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-                        const p = board[r][c];
-                        if (p && p.color === enemy) {
-                            if (generatePseudoMoves(board, r, c, p).some(([rr, cc]) => rr === kr && cc === kc)) return true;
+                    return isSquareAttacked(board, kr, kc, enemy);
+                }
+
+                // --- CASTLING CHANGE: New helper function to check if a square is attacked ---
+                function isSquareAttacked(board, r, c, attackerColor) {
+                    for (let row = 0; row < 8; row++) {
+                        for (let col = 0; col < 8; col++) {
+                            const piece = board[row][col];
+                            if (piece && piece.color === attackerColor) {
+                                const moves = generatePseudoMoves(board, row, col, piece, false); // false to prevent recursion
+                                if (moves.some(([tr, tc]) => tr === r && tc === c)) {
+                                    return true;
+                                }
+                            }
                         }
                     }
                     return false;
@@ -909,6 +956,7 @@
                     return false;
                 }
 
+                // --- CASTLING CHANGE: Major updates to makeMove to handle castling ---
                 function makeMove(fromIndex, toIndex) {
                     if (state.moveHistory.length === 0) {
                         startTimer();
@@ -916,39 +964,80 @@
                     const [fr, fc] = indexToCoord(fromIndex);
                     const [tr, tc] = indexToCoord(toIndex);
                     const piece = state.board[fr][fc];
+                    
+                    const isCastle = piece.type === 'K' && Math.abs(fc - tc) === 2;
+                    let notation;
+
+                    // Update castling rights BEFORE moving piece
+                    if (piece.type === 'K') {
+                        state.castling[piece.color].K = false;
+                        state.castling[piece.color].Q = false;
+                    }
+                    if (piece.type === 'R') {
+                        if (fr === 7 && fc === 0) state.castling.white.Q = false; // a1
+                        if (fr === 7 && fc === 7) state.castling.white.K = false; // h1
+                        if (fr === 0 && fc === 0) state.castling.black.Q = false; // a8
+                        if (fr === 0 && fc === 7) state.castling.black.K = false; // h8
+                    }
+
                     const captured = state.board[tr][tc];
                     if (captured) {
                         state.captured[state.turn].push(captured);
                     }
+
+                    // Move the rook if castling
+                    if (isCastle) {
+                        if (tc > fc) { // Kingside
+                            state.board[fr][5] = state.board[fr][7];
+                            state.board[fr][7] = null;
+                            notation = 'O-O';
+                        } else { // Queenside
+                            state.board[fr][3] = state.board[fr][0];
+                            state.board[fr][0] = null;
+                            notation = 'O-O-O';
+                        }
+                    }
+
+                    // Move the primary piece
                     state.board[tr][tc] = { ...piece };
                     state.board[fr][fc] = null;
                     lastMove = { from: fromIndex, to: toIndex, captured: !!captured };
 
-                    if (captured) sounds.capture.triggerAttackRelease("8n");
+                    if (isCastle) sounds.move.triggerAttackRelease("E5", "16n");
+                    else if (captured) sounds.capture.triggerAttackRelease("8n");
                     else sounds.move.triggerAttackRelease("C5", "16n");
                     
+                    let promotion = false;
                     if (piece.type === 'P' && (tr === 0 || tr === 7)) {
                         state.board[tr][tc].type = 'Q';
+                        promotion = true;
                     }
-                    const movedPiece = state.board[tr][tc];
-                    const pieceSymbol = PIECES[movedPiece.color][movedPiece.type];
-                    const notation = `${pieceSymbol} ${algebraic([fr, fc])}${captured ? 'x' : '→'}${algebraic([tr, tc])}`;
-                    state.moveHistory.push(notation);
+                    
+                    if (!isCastle) {
+                        const pieceChar = piece.type === 'P' ? '' : piece.type;
+                        notation = `${pieceChar}${algebraic([fr, fc])}${captured ? 'x' : '-'}${algebraic([tr, tc])}`;
+                        if (promotion) notation += '=Q';
+                    }
+                    
                     state.turn = state.turn === 'white' ? 'black' : 'white';
                     updateTimerDisplays();
                     const inCheck = isInCheck(state.board, state.turn);
                     const hasMoves = currentPlayerHasLegalMove();
+
                     if (!hasMoves) {
                         if (inCheck) {
                             state.winner = state.turn === 'white' ? 'black' : 'white';
+                            notation += '#';
                             sounds.checkmate.triggerAttackRelease(["C3", "G3", "C4", "Eb4"], "1.5s");
                         } else {
                             state.stalemate = true;
                             sounds.gameEnd.triggerAttackRelease("C3", "1s");
                         }
                     } else if (inCheck) {
+                        notation += '+';
                         sounds.check.triggerAttackRelease("A5", "16n");
                     }
+                    state.moveHistory.push(notation);
                     updateStatus();
                 }
 
@@ -1002,4 +1091,3 @@
     </script>
 </body>
 </html>
-
